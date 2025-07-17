@@ -1,0 +1,82 @@
+.alert {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 15px 25px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+  z-index: 1000;
+  min-width: 280px;
+  max-width: 90%; /* Ensure it doesn't get too wide on large screens */
+  box-sizing: border-box; /* Include padding and border in the element's total width and height */
+}
+
+.alert.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.alert-success {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.alert-info {
+  background-color: #d1ecf1;
+  color: #0c5460;
+  border: 1px solid #bee5eb;
+}
+
+.alert-warning {
+  background-color: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeeba;
+}
+
+.alert-danger {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.alert-message {
+  margin-right: 15px;
+  font-size: 1em;
+  flex-grow: 1;
+}
+
+.alert-close-btn {
+  background: none;
+  border: none;
+  color: inherit; /* Inherit color from parent for better contrast */
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 5px;
+}
+
+/* Responsive adjustments for Alerts */
+@media (max-width: 768px) {
+  .alert {
+    top: 15px;
+    padding: 12px 20px;
+    max-width: 95%;
+  }
+}
+
+@media (max-width: 480px) {
+  .alert {
+    top: 10px;
+    padding: 10px 15px;
+    font-size: 0.9em;
+  }
+  .alert-close-btn {
+    font-size: 18px;
+  }
+}

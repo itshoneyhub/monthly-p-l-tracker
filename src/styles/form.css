@@ -1,0 +1,261 @@
+.page-container {
+  padding: 2rem;
+  background-color: #f9f9f9;
+}
+
+.page-title {
+  font-size: 2rem;
+  font-weight: bold;
+  margin-bottom: 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.btn-add-toggle {
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  font-size: 1.5rem;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.btn-add-toggle:hover {
+  background-color: #45a049;
+}
+
+.form-section {
+  background-color: #fff;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
+}
+
+.section-title {
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin-bottom: 1rem;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.form-input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.btn {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background-color 0.3s;
+}
+
+.btn-primary {
+  background-color: #007bff;
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: #0056b3;
+}
+
+.table-section {
+  background-color: #fff;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.table-header-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.total-amount {
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+.total-amount-value {
+  font-weight: normal;
+}
+
+.green {
+  color: #28a745;
+}
+
+.red {
+  color: #dc3545;
+}
+
+.gray {
+  color: #6c757d;
+}
+
+.date-filter-group {
+  display: flex;
+  gap: 1rem;
+}
+
+.date-filter-input {
+  width: 150px;
+}
+
+.table-responsive {
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table-header {
+  background-color: #f2f2f2;
+  padding: 0.75rem;
+  text-align: left;
+  font-weight: bold;
+}
+
+.table-row-even {
+  background-color: #f9f9f9;
+}
+
+.table-row-odd {
+  background-color: #fff;
+}
+
+.table-data {
+  padding: 0.75rem;
+  border-bottom: 1px solid #ddd;
+}
+
+.btn-edit {
+  background-color: #ffc107;
+  color: #212529;
+  margin-right: 0.5rem;
+}
+
+.btn-edit:hover {
+  background-color: #e0a800;
+}
+
+.btn-delete {
+  background-color: #dc3545;
+  color: white;
+}
+
+.btn-delete:hover {
+  background-color: #c82333;
+}
+
+.btn-save {
+  background-color: #28a745;
+  color: white;
+  margin-left: 0.5rem;
+  padding: 0.5rem 1rem; /* Smaller padding for a smaller button */
+  font-size: 0.9rem; /* Smaller font size */
+}
+
+.btn-save:hover {
+  background-color: #218838;
+}
+
+.table-data {
+  padding: 0.75rem;
+  border-bottom: 1px solid #ddd;
+  vertical-align: middle; /* Align content vertically */
+}
+
+.table-data:last-child { /* Target the actions column */
+  display: flex;
+  gap: 0.5rem; /* Space between buttons */
+  align-items: center; /* Center buttons vertically */
+}
+  color: #dc3545;
+  font-weight: bold;
+}
+
+.status-upcoming {
+  color: #ffc107;
+  font-weight: bold;
+}
+
+.status-paid {
+  color: #28a745;
+  font-weight: bold;
+}
+
+.fixed-tag {
+  background-color: #007bff;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.75em;
+  margin-left: 5px;
+}
+
+/* Responsive adjustments for forms and tables */
+@media (max-width: 768px) {
+  .page-container {
+    padding: 1rem;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .table-header-controls {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .date-filter-group {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .date-filter-input {
+    width: 100%;
+  }
+
+  .data-table {
+    font-size: 0.9em;
+  }
+
+  .table-data {
+    padding: 0.5rem;
+  }
+
+  .btn-edit, .btn-delete {
+    padding: 0.3em 0.6em;
+    font-size: 0.8em;
+  }
+
+  .data-table input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    min-width: 20px; /* Ensure minimum width */
+    min-height: 20px; /* Ensure minimum height */
+    margin-right: 8px;
+    vertical-align: middle;
+    transform: scale(1.2); /* Slightly increase size visually */
+  }
+}

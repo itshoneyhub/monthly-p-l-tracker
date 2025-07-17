@@ -1,0 +1,60 @@
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Dashboard Alerts - Keeping existing styles, they seem reasonable */
+.alerts-section {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.alerts-title {
+  font-size: 1.8rem;
+  color: #333;
+  margin-bottom: 1.5rem;
+}
+
+.alerts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+.alert-card {
+  padding: 1rem;
+  border-radius: 8px;
+  text-align: left;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.alert-overdue {
+  background-color: #ffe0e0; /* Light red */
+  border: 1px solid #ff9999;
+  color: #cc0000; /* Darker red */
+}
+
+.alert-upcoming {
+  background-color: #e0ffe0; /* Light green */
+  border: 1px solid #99ff99;
+  color: #008000; /* Darker green */
+}
+
+.alert-description {
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+}
+
+.alert-amount {
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+}
+
+.alert-days {
+  font-size: 0.9rem;
+  font-style: italic;
+}

@@ -1,0 +1,61 @@
+.settings-tabs {
+  display: flex;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid #ddd;
+  overflow-x: auto; /* Enable horizontal scrolling for tabs on small screens */
+  -webkit-overflow-scrolling: touch;
+}
+
+.settings-tab-btn {
+  background-color: #f0f0f0;
+  border: 1px solid #ddd;
+  border-bottom: none;
+  padding: 10px 20px;
+  cursor: pointer;
+  font-size: 1rem;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  transition: background-color 0.3s, color 0.3s;
+  flex-shrink: 0; /* Prevent tabs from shrinking */
+}
+
+.settings-tab-btn:hover {
+  background-color: #e0e0e0;
+}
+
+.settings-tab-btn.active {
+  background-color: #fff;
+  border-color: #ccc;
+  color: #007bff;
+  font-weight: bold;
+}
+
+.settings-content {
+  background-color: #fff;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Responsive adjustments for Settings */
+@media (max-width: 768px) {
+  .settings-tabs {
+    flex-wrap: nowrap; /* Keep tabs in a single line */
+  }
+
+  .settings-tab-btn {
+    padding: 8px 15px;
+    font-size: 0.9rem;
+  }
+
+  .settings-content {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .settings-tab-btn {
+    padding: 6px 10px;
+    font-size: 0.8rem;
+  }
+}
