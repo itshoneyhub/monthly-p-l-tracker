@@ -17,7 +17,7 @@ function Login({ onLogin }) {
     }
   }, [navigate]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     console.log('Login: handleSubmit called.');
     if (!username || !password) {
@@ -25,9 +25,9 @@ function Login({ onLogin }) {
       return;
     }
 
-    if (username === 'hanumant' && password === 'password') {
-      onLogin();
-      showAlert('Login successful!');
+    const success = await onLogin(username, password);
+    if (success) {
+      showAlert('Login successful!', 'success');
       console.log('Login: Successful login, navigating to /dashboard.');
       navigate('/dashboard');
     } else {

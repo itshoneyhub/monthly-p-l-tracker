@@ -3,55 +3,47 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import '../styles/form.css';
 import { useAlert } from '../hooks/useAlert.js';
-import { getFixedEntries, updateFixedEntry } from '../utils/fixedData';
+import { getFixedEntries, updateFixedEntry, deleteFixedEntry as deleteFixedEntryApi } from '../utils/fixedData';
+import Modal from '../components/Modal.jsx';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL + '/api';
 
 function Expenses() {
-  const [showForm, setShowForm] = useState(false);
   const [expenseEntries, setExpenseEntries] = useState([]);
   const [newEntry, setNewEntry] = useState({ date: new Date(), description: '', amount: '', id: null, paid: false });
-  const [editingId, setEditingId] = useState(null);
+  const [editingEntry, setEditingEntry] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   const { showAlert } = useAlert();
 
-  const fetchExpenseEntries = useCallback(() => {
-    const storedEntries = JSON.parse(localStorage.getItem('expenseEntries')) || [];
-    const fixedEntries = getFixedEntries('expenses').map(entry => ({ ...entry, isFixed: true }));
-    
-    const combinedEntries = [...storedEntries, ...fixedEntries].sort((a, b) => new Date(a.date) - new Date(b.date));
-    
-    setExpenseEntries(combinedEntries.map((entry, index) => ({
-      ...entry,
-      id: entry.id || Date.now() + index,
-      date: entry.date ? new Date(entry.date) : null,
-      srNo: index + 1,
-      paid: entry.paid || false // Ensure 'paid' property exists and defaults to false
-    })));
-  }, []);
+  const fetchExpenseEntries = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/expenses`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const storedEntries = await response.json();
 
-  useEffect(() => {
-    fetchExpenseEntries();
-    const handleStorageUpdate = () => {
-      setTimeout(() => {
-        fetchExpenseEntries();
-      }, 100); // Add a small delay to ensure localStorage is updated
-    };
-    window.addEventListener('localStorageUpdated', handleStorageUpdate);
-    return () => {
-      window.removeEventListener('localStorageUpdated', handleStorageUpdate);
-    };
-  }, [fetchExpenseEntries]);
+      const fixedEntries = await getFixedEntries('expenses');
+      const combinedEntries = [
+        ...storedEntries.map(entry => ({ ...entry, isFixed: false })),
+        ...fixedEntries.map(entry => ({ ...entry, isFixed: true }))
+      ].sort((a, b) => new Date(a.date) - new Date(b.date));
 
-  useEffect(() => {
-    const nonFixedEntries = expenseEntries.filter(entry => !entry.isFixed);
-    const dataToSave = nonFixedEntries.map(entry => ({
-      ...entry,
-      date: entry.date ? entry.date.toISOString() : null,
-      id: entry.id // Preserve ID when saving
-    }));
-    console.log('Expenses: Saving non-fixed entries to localStorage:', dataToSave);
-    localStorage.setItem('expenseEntries', JSON.stringify(dataToSave));
-  }, [expenseEntries]);
+      setExpenseEntries(combinedEntries.map((entry, index) => ({
+        ...entry,
+        date: entry.date ? new Date(entry.date) : null,
+        srNo: index + 1,
+        paid: entry.paid || false
+      })));
+    } catch (error) {
+      console.error('Error fetching expense entries:', error);
+      showAlert('Failed to fetch expense entries.', 'danger');
+    }
+  }, [showAlert]);
+
+  
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -62,43 +54,76 @@ function Expenses() {
     setNewEntry({ ...newEntry, date });
   };
 
-  const handleMarkAsPaid = (id) => {
-    const entryToMarkPaid = expenseEntries.find(entry => entry.id === id);
-    if (entryToMarkPaid) {
+  const handleMarkAsPaid = async (id, isFixed) => {
+    try {
+      const entryToMarkPaid = expenseEntries.find(entry => entry.id === id);
+      if (!entryToMarkPaid) return;
+
       const updatedEntry = { ...entryToMarkPaid, paid: true };
-      if (updatedEntry.isFixed) {
-        updateFixedEntry('expenses', id, updatedEntry);
+
+      let response;
+      if (isFixed) {
+        response = await fetch(`${API_BASE_URL}/fixed-entries/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedEntry),
+        });
       } else {
-        const updatedEntries = expenseEntries.map(entry =>
-          entry.id === id ? updatedEntry : entry
-        );
-        localStorage.setItem('expenseEntries', JSON.stringify(updatedEntries.filter(entry => !entry.isFixed).map(entry => ({
-          ...entry,
-          date: entry.date ? entry.date.toISOString() : null,
-          id: entry.id, // Preserve ID when saving
-          paid: entry.paid // Preserve paid status when saving
-        }))));
-        setExpenseEntries(updatedEntries);
+        response = await fetch(`${API_BASE_URL}/expenses/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedEntry),
+        });
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
       showAlert('Expense marked as paid!', 'success');
-      window.dispatchEvent(new Event('localStorageUpdated'));
+      fetchExpenseEntries();
+      window.dispatchEvent(new Event('dataUpdated'));
+    } catch (error) {
+      console.error('Error marking expense as paid:', error);
+      showAlert('Failed to mark expense as paid.', 'danger');
     }
   };
 
-  const handleAddOrUpdateEntry = () => {
+  const handleAddOrUpdateEntry = async () => {
     if (newEntry.date && newEntry.description && newEntry.amount) {
-      if (editingId !== null) {
-        const updatedEntries = expenseEntries.map(entry =>
-          entry.id === editingId ? { ...newEntry, srNo: entry.srNo } : entry
-        );
-        setExpenseEntries(updatedEntries);
-        setEditingId(null);
-        showAlert('Record updated successfully');
-      } else {
-        setExpenseEntries([...expenseEntries, { ...newEntry, id: Date.now(), srNo: expenseEntries.length + 1 }]);
-        showAlert('Record added successfully');
+      try {
+        const entryData = { ...newEntry, date: newEntry.date.toISOString().split('T')[0] };
+        if (editingEntry) {
+          // Update existing entry
+          const response = await fetch(`${API_BASE_URL}/expenses/${editingEntry.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(entryData),
+          });
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          showAlert('Record updated successfully', 'success');
+        } else {
+          // Add new entry
+          const response = await fetch(`${API_BASE_URL}/expenses`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(entryData),
+          });
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          showAlert('Record added successfully', 'success');
+        }
+        setNewEntry({ date: new Date(), description: '', amount: '', id: null });
+        setEditingEntry(null);
+        setIsModalOpen(false);
+        fetchExpenseEntries();
+        window.dispatchEvent(new Event('dataUpdated'));
+      } catch (error) {
+        console.error('Error adding/updating expense entry:', error);
+        showAlert('Failed to save expense entry.', 'danger');
       }
-      setNewEntry({ date: new Date(), description: '', amount: '', id: null });
     } else {
       showAlert('Please fill in all fields.', 'danger');
     }
@@ -106,14 +131,36 @@ function Expenses() {
 
   const handleEditEntry = (id) => {
     const entryToEdit = expenseEntries.find(entry => entry.id === id);
-    setNewEntry(entryToEdit);
-    setEditingId(id);
+    if (entryToEdit) {
+      setNewEntry({ ...entryToEdit, date: new Date(entryToEdit.date) });
+      setEditingEntry(entryToEdit);
+      setIsModalOpen(true);
+    }
   };
 
-  const handleDeleteEntry = (id) => {
-    const updatedEntries = expenseEntries.filter(entry => entry.id !== id);
-    setExpenseEntries(updatedEntries);
-    showAlert('Record deleted successfully', 'danger');
+  const handleDeleteEntry = async (id, isFixed) => {
+    try {
+      let response;
+      if (isFixed) {
+        response = await fetch(`${API_BASE_URL}/fixed-entries/${id}`, {
+          method: 'DELETE',
+        });
+      } else {
+        response = await fetch(`${API_BASE_URL}/expenses/${id}`, {
+          method: 'DELETE',
+        });
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      showAlert('Record deleted successfully', 'danger');
+      fetchExpenseEntries();
+      window.dispatchEvent(new Event('dataUpdated'));
+    } catch (error) {
+      console.error('Error deleting expense entry:', error);
+      showAlert('Failed to delete expense entry.', 'danger');
+    }
   };
 
   const filteredExpenseEntries = expenseEntries.filter(entry => {
@@ -126,14 +173,24 @@ function Expenses() {
   return (
     <div className="page-container">
       <h1 className="page-title">Expenses
-        <button onClick={() => setShowForm(!showForm)} className="btn btn-add-toggle">
-          {showForm ? '-' : '+'}
+        <button onClick={() => setIsModalOpen(true)} className="btn btn-add-toggle">
+          +
         </button>
       </h1>
 
-      {showForm && (
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingEntry ? 'Edit Expense Entry' : 'Add Expense Entry'}>
         <div className="form-section">
-          <h2 className="section-title">Add/Edit Expense Entry</h2>
+          <div className="form-header">
+            <h2 className="section-title">{editingEntry ? 'Edit' : 'Add'} Expense Entry</h2>
+            <div className="form-buttons">
+              <button onClick={handleAddOrUpdateEntry} className="btn btn-primary">
+                {editingEntry ? 'Update' : 'Add'}
+              </button>
+              <button onClick={() => setIsModalOpen(false)} className="btn btn-secondary">
+                Cancel
+              </button>
+            </div>
+          </div>
           <div className="form-grid">
             <DatePicker
               selected={newEntry.date}
@@ -159,15 +216,9 @@ function Expenses() {
               onChange={handleInputChange}
               className="form-input"
             />
-            <button
-              onClick={handleAddOrUpdateEntry}
-              className="btn btn-primary"
-            >
-              {editingId !== null ? 'Update Entry' : 'Add Entry'}
-            </button>
           </div>
         </div>
-      )}
+      </Modal>
 
       <div className="table-section">
         <h2 className="section-title">Expense Entries</h2>
@@ -257,7 +308,7 @@ function Expenses() {
                     {entry.isFixed ? (
                       !entry.paid && (
                         <button
-                          onClick={() => handleMarkAsPaid(entry.id)}
+                          onClick={() => handleMarkAsPaid(entry.id, true)}
                           className="btn btn-save"
                         >
                           Paid
@@ -284,7 +335,7 @@ function Expenses() {
                           <>
                             {!entry.paid && (
                               <button
-                                onClick={() => handleMarkAsPaid(entry.id)}
+                                onClick={() => handleMarkAsPaid(entry.id, false)}
                                 className="btn btn-save"
                               >
                                 Paid
@@ -297,7 +348,7 @@ function Expenses() {
                               Edit
                             </button>
                             <button
-                              onClick={() => handleDeleteEntry(entry.id)}
+                              onClick={() => handleDeleteEntry(entry.id, false)}
                               className="btn btn-delete"
                             >
                               Delete

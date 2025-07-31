@@ -35,10 +35,22 @@
   margin-bottom: 2rem;
 }
 
+.form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
 .section-title {
   font-size: 1.5rem;
   font-weight: bold;
-  margin-bottom: 1rem;
+  margin: 0; /* Remove default margin to prevent double margin */
+}
+
+.form-buttons {
+  display: flex;
+  gap: 0.5rem;
 }
 
 .form-grid {
@@ -188,6 +200,8 @@
   gap: 0.5rem; /* Space between buttons */
   align-items: center; /* Center buttons vertically */
 }
+
+.status-overdue {
   color: #dc3545;
   font-weight: bold;
 }

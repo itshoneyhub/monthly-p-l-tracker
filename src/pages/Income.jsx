@@ -1,57 +1,60 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import Modal from '../components/Modal.jsx';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import '../styles/form.css';
 import { useAlert } from '../hooks/useAlert.js';
-import { getFixedEntries, updateFixedEntry } from '../utils/fixedData';
+import { getFixedEntries, updateFixedEntry, deleteFixedEntry as deleteFixedEntryApi } from '../utils/fixedData';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL + '/api';
 
 function Income() {
-  const [showForm, setShowForm] = useState(false);
   const [incomeEntries, setIncomeEntries] = useState([]);
   const [newEntry, setNewEntry] = useState({ date: new Date(), description: '', amount: '', id: null, paid: false });
-  const [editingId, setEditingId] = useState(null);
+  const [editingEntry, setEditingEntry] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   const { showAlert } = useAlert();
 
-  const fetchIncomeEntries = useCallback(() => {
-    const storedEntries = JSON.parse(localStorage.getItem('incomeEntries')) || [];
-    const fixedEntries = getFixedEntries('income').map(entry => ({ ...entry, isFixed: true }));
-    
-    const combinedEntries = [...storedEntries, ...fixedEntries].sort((a, b) => new Date(a.date) - new Date(b.date));
-    
-    setIncomeEntries(combinedEntries.map((entry, index) => ({
-      ...entry,
-      id: entry.id || Date.now() + index,
-      date: entry.date ? new Date(entry.date) : null,
-      srNo: index + 1, // Re-assign Sr. No. after combining and sorting
-      paid: entry.paid || false // Ensure 'paid' property exists and defaults to false
-    })));
-  }, []);
+  const fetchIncomeEntries = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/income`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const storedEntries = await response.json();
+
+      const fixedEntries = await getFixedEntries('income');
+      const combinedEntries = [
+        ...storedEntries.map(entry => ({ ...entry, isFixed: false })),
+        ...fixedEntries.map(entry => ({ ...entry, isFixed: true }))
+      ].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      setIncomeEntries(combinedEntries.map((entry, index) => ({
+        ...entry,
+        date: entry.date ? new Date(entry.date) : null,
+        srNo: index + 1,
+        paid: entry.paid || false
+      })));
+    } catch (error) {
+      console.error('Error fetching income entries:', error);
+      showAlert('Failed to fetch income entries.', 'danger');
+    }
+  }, [showAlert]);
 
   useEffect(() => {
     fetchIncomeEntries();
-    const handleStorageUpdate = () => {
-      setTimeout(() => {
-        fetchIncomeEntries();
-      }, 100); // Add a small delay to ensure localStorage is updated
+    const handleDataUpdate = () => {
+      fetchIncomeEntries();
     };
-    window.addEventListener('localStorageUpdated', handleStorageUpdate);
+    window.addEventListener('dataUpdated', handleDataUpdate);
+    window.addEventListener('fixedEntryUpdated', handleDataUpdate);
     return () => {
-      window.removeEventListener('localStorageUpdated', handleStorageUpdate);
+      window.removeEventListener('dataUpdated', handleDataUpdate);
+      window.removeEventListener('fixedEntryUpdated', handleDataUpdate);
     };
   }, [fetchIncomeEntries]);
-
-  useEffect(() => {
-    const nonFixedEntries = incomeEntries.filter(entry => !entry.isFixed);
-    const dataToSave = nonFixedEntries.map(entry => ({
-      ...entry,
-      date: entry.date ? entry.date.toISOString() : null,
-      id: entry.id // Preserve ID when saving
-    }));
-    console.log('Income: Saving non-fixed entries to localStorage:', dataToSave);
-    localStorage.setItem('incomeEntries', JSON.stringify(dataToSave));
-  }, [incomeEntries]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -62,43 +65,76 @@ function Income() {
     setNewEntry({ ...newEntry, date });
   };
 
-  const handleMarkAsPaid = (id) => {
-    const entryToMarkPaid = incomeEntries.find(entry => entry.id === id);
-    if (entryToMarkPaid) {
+  const handleMarkAsPaid = async (id, isFixed) => {
+    try {
+      const entryToMarkPaid = incomeEntries.find(entry => entry.id === id);
+      if (!entryToMarkPaid) return;
+
       const updatedEntry = { ...entryToMarkPaid, paid: true };
-      if (updatedEntry.isFixed) {
-        updateFixedEntry('income', id, updatedEntry);
+
+      let response;
+      if (isFixed) {
+        response = await fetch(`${API_BASE_URL}/fixed-entries/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedEntry),
+        });
       } else {
-        const updatedEntries = incomeEntries.map(entry =>
-          entry.id === id ? updatedEntry : entry
-        );
-        localStorage.setItem('incomeEntries', JSON.stringify(updatedEntries.filter(entry => !entry.isFixed).map(entry => ({
-          ...entry,
-          date: entry.date ? entry.date.toISOString() : null,
-          id: entry.id, // Preserve ID when saving
-          paid: entry.paid // Preserve paid status when saving
-        }))));
-        setIncomeEntries(updatedEntries);
+        response = await fetch(`${API_BASE_URL}/income/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedEntry),
+        });
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
       showAlert('Income marked as paid!', 'success');
-      window.dispatchEvent(new Event('localStorageUpdated'));
+      fetchIncomeEntries();
+      window.dispatchEvent(new Event('dataUpdated'));
+    } catch (error) {
+      console.error('Error marking income as paid:', error);
+      showAlert('Failed to mark income as paid.', 'danger');
     }
   };
 
-  const handleAddOrUpdateEntry = () => {
+  const handleAddOrUpdateEntry = async () => {
     if (newEntry.date && newEntry.description && newEntry.amount) {
-      if (editingId !== null) {
-        const updatedEntries = incomeEntries.map(entry =>
-          entry.id === editingId ? { ...newEntry, srNo: entry.srNo } : entry
-        );
-        setIncomeEntries(updatedEntries);
-        setEditingId(null);
-        showAlert('Record updated successfully');
-      } else {
-        setIncomeEntries([...incomeEntries, { ...newEntry, id: Date.now(), srNo: incomeEntries.length + 1 }]); // Assign unique ID for new entries
-        showAlert('Record added successfully');
+      try {
+        const entryData = { ...newEntry, date: newEntry.date.toISOString().split('T')[0] };
+        if (editingEntry) {
+          // Update existing entry
+          const response = await fetch(`${API_BASE_URL}/income/${editingEntry.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(entryData),
+          });
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          showAlert('Record updated successfully', 'success');
+        } else {
+          // Add new entry
+          const response = await fetch(`${API_BASE_URL}/income`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(entryData),
+          });
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          showAlert('Record added successfully', 'success');
+        }
+        setNewEntry({ date: new Date(), description: '', amount: '', id: null });
+        setEditingEntry(null);
+        setIsModalOpen(false);
+        fetchIncomeEntries();
+        window.dispatchEvent(new Event('dataUpdated'));
+      } catch (error) {
+        console.error('Error adding/updating income entry:', error);
+        showAlert('Failed to save income entry.', 'danger');
       }
-      setNewEntry({ date: new Date(), description: '', amount: '', id: null });
     } else {
       showAlert('Please fill in all fields.', 'danger');
     }
@@ -106,14 +142,36 @@ function Income() {
 
   const handleEditEntry = (id) => {
     const entryToEdit = incomeEntries.find(entry => entry.id === id);
-    setNewEntry(entryToEdit);
-    setEditingId(id);
+    if (entryToEdit) {
+      setNewEntry({ ...entryToEdit, date: new Date(entryToEdit.date) });
+      setEditingEntry(entryToEdit);
+      setIsModalOpen(true);
+    }
   };
 
-  const handleDeleteEntry = (id) => {
-    const updatedEntries = incomeEntries.filter(entry => entry.id !== id);
-    setIncomeEntries(updatedEntries);
-    showAlert('Record deleted successfully', 'danger');
+  const handleDeleteEntry = async (id, isFixed) => {
+    try {
+      let response;
+      if (isFixed) {
+        response = await fetch(`${API_BASE_URL}/fixed-entries/${id}`, {
+          method: 'DELETE',
+        });
+      } else {
+        response = await fetch(`${API_BASE_URL}/income/${id}`, {
+          method: 'DELETE',
+        });
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      showAlert('Record deleted successfully', 'danger');
+      fetchIncomeEntries();
+      window.dispatchEvent(new Event('dataUpdated'));
+    } catch (error) {
+      console.error('Error deleting income entry:', error);
+      showAlert('Failed to delete income entry.', 'danger');
+    }
   };
 
   const filteredIncomeEntries = incomeEntries.filter(entry => {
@@ -126,14 +184,24 @@ function Income() {
   return (
     <div className="page-container">
       <h1 className="page-title">Income
-        <button onClick={() => setShowForm(!showForm)} className="btn btn-add-toggle">
-          {showForm ? '-' : '+'}
+        <button onClick={() => setIsModalOpen(true)} className="btn btn-add-toggle">
+          +
         </button>
       </h1>
 
-      {showForm && (
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingEntry ? 'Edit Income Entry' : 'Add Income Entry'}>
         <div className="form-section">
-          <h2 className="section-title">Add/Edit Income Entry</h2>
+          <div className="form-header">
+            <h2 className="section-title">{editingEntry ? 'Edit' : 'Add'} Income Entry</h2>
+            <div className="form-buttons">
+              <button onClick={handleAddOrUpdateEntry} className="btn btn-primary">
+                {editingEntry ? 'Update' : 'Add'}
+              </button>
+              <button onClick={() => setIsModalOpen(false)} className="btn btn-secondary">
+                Cancel
+              </button>
+            </div>
+          </div>
           <div className="form-grid">
             <DatePicker
               selected={newEntry.date}
@@ -159,15 +227,9 @@ function Income() {
               onChange={handleInputChange}
               className="form-input"
             />
-            <button
-              onClick={handleAddOrUpdateEntry}
-              className="btn btn-primary"
-            >
-              {editingId !== null ? 'Update Entry' : 'Add Entry'}
-            </button>
           </div>
         </div>
-      )}
+      </Modal>
 
       <div className="table-section">
         <h2 className="section-title">Income Entries</h2>
@@ -255,7 +317,7 @@ function Income() {
                     {entry.isFixed ? (
                       !entry.paid && (
                         <button
-                          onClick={() => handleMarkAsPaid(entry.id)}
+                          onClick={() => handleMarkAsPaid(entry.id, true)}
                           className="btn btn-save"
                         >
                           Paid
@@ -282,7 +344,7 @@ function Income() {
                           <>
                             {!entry.paid && (
                               <button
-                                onClick={() => handleMarkAsPaid(entry.id)}
+                                onClick={() => handleMarkAsPaid(entry.id, false)}
                                 className="btn btn-save"
                               >
                                 Paid
@@ -295,7 +357,7 @@ function Income() {
                               Edit
                             </button>
                             <button
-                              onClick={() => handleDeleteEntry(entry.id)}
+                              onClick={() => handleDeleteEntry(entry.id, false)}
                               className="btn btn-delete"
                             >
                               Delete

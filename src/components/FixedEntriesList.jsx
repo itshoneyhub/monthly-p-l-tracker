@@ -36,7 +36,7 @@ const FixedEntriesList = ({ type, entries, onEdit, onDelete }) => {
           </thead>
           <tbody>
             {entries.map((entry, index) => (
-              <tr key={index} className={index % 2 === 0 ? 'table-row-even' : 'table-row-odd'}>
+              <tr key={entry.id} className={index % 2 === 0 ? 'table-row-even' : 'table-row-odd'}>
                 <td className="table-data">{index + 1}</td>
                 <td className="table-data">{entry.date ? new Date(entry.date).toLocaleDateString() : ''}</td>
                 {type === 'Liabilities' && <td className="table-data">{entry.dueDate ? new Date(entry.dueDate).toLocaleDateString() : ''}</td>}
@@ -54,10 +54,10 @@ const FixedEntriesList = ({ type, entries, onEdit, onDelete }) => {
                   </td>
                 )}
                 <td className="table-data">
-                  <button onClick={() => onEdit(entry, index)} className="btn btn-edit">
+                  <button onClick={() => onEdit(entry)} className="btn btn-edit">
                     Edit
                   </button>
-                  <button onClick={() => onDelete(index)} className="btn btn-delete">
+                  <button onClick={() => onDelete(entry.id)} className="btn btn-delete">
                     Delete
                   </button>
                 </td>

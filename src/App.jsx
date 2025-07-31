@@ -19,6 +19,7 @@ const PrivateRoute = () => {
 
 const App = () => {
   const [loggedIn, setLoggedIn] = useState(isLoggedIn());
+  const [dbTestResult, setDbTestResult] = useState('');
 
   useEffect(() => {
     console.log('App: useEffect triggered. Current loggedIn state:', loggedIn);
@@ -34,10 +35,11 @@ const App = () => {
     };
   }, []);
 
-  const handleLogin = () => {
-    login();
-    setLoggedIn(true);
-    console.log('App: handleLogin called. loggedIn state set to true.');
+  const handleLogin = async (username, password) => {
+    const success = await login(username, password);
+    setLoggedIn(success);
+    console.log('App: handleLogin called. loggedIn state set to', success);
+    return success;
   };
 
   const handleLogout = () => {
@@ -46,12 +48,26 @@ const App = () => {
     console.log('App: handleLogout called. loggedIn state set to false.');
   };
 
+  const testDatabaseConnection = async () => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/test-db`);
+      const data = await response.text();
+      setDbTestResult(data);
+    } catch (error) {
+      setDbTestResult(`Error testing DB: ${error.message}`);
+    }
+  };
+
   console.log('App: Rendering. Current loggedIn state:', loggedIn);
 
   return (
     <AlertProvider>
       <Router>
         {loggedIn && <Navbar onLogout={handleLogout} />}
+        <button onClick={testDatabaseConnection} style={{ margin: '10px', padding: '10px' }}>
+          Test DB Connection
+        </button>
+        {dbTestResult && <p style={{ margin: '10px', color: 'green' }}>{dbTestResult}</p>}
         <Routes>
           <Route path="/login" element={<Login onLogin={handleLogin} />} />
 

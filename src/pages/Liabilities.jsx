@@ -3,43 +3,57 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import '../styles/form.css';
 import { useAlert } from '../hooks/useAlert.js';
-import { getFixedEntries, updateFixedEntry } from '../utils/fixedData';
+import { getFixedEntries, updateFixedEntry, deleteFixedEntry as deleteFixedEntryApi } from '../utils/fixedData';
+import Modal from '../components/Modal.jsx';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL + '/api';
 
 function Liabilities() {
-  const [showForm, setShowForm] = useState(false);
   const [liabilityEntries, setLiabilityEntries] = useState([]);
   const [newEntry, setNewEntry] = useState({ date: null, dueDate: null, description: '', amount: '', paid: false });
-  const [editingId, setEditingId] = useState(null);
+  const [editingEntry, setEditingEntry] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   const { showAlert } = useAlert();
 
-  const fetchLiabilityEntries = useCallback(() => {
-    const storedEntries = JSON.parse(localStorage.getItem('liabilityEntries')) || [];
-    const fixedEntries = getFixedEntries('liabilities').map(entry => ({ ...entry, isFixed: true }));
+  const fetchLiabilityEntries = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/liabilities`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const storedEntries = await response.json();
 
-    const combinedEntries = [...storedEntries, ...fixedEntries].sort((a, b) => new Date(a.date) - new Date(b.date));
+      const fixedEntries = await getFixedEntries('liabilities');
+      const combinedEntries = [
+        ...storedEntries.map(entry => ({ ...entry, isFixed: false })),
+        ...fixedEntries.map(entry => ({ ...entry, isFixed: true }))
+      ].sort((a, b) => new Date(a.date) - new Date(b.date));
 
-    setLiabilityEntries(combinedEntries.map((entry, index) => ({
-      ...entry,
-      id: entry.id || Date.now() + index,
-      date: entry.date ? new Date(entry.date) : null,
-      dueDate: entry.dueDate ? new Date(entry.dueDate) : null,
-      srNo: index + 1,
-      paid: entry.paid || false // Ensure 'paid' property exists and defaults to false
-    })));
-  }, []);
+      setLiabilityEntries(combinedEntries.map((entry, index) => ({
+        ...entry,
+        date: entry.date ? new Date(entry.date) : null,
+        dueDate: entry.dueDate ? new Date(entry.dueDate) : null,
+        srNo: index + 1,
+        paid: entry.paid || false
+      })));
+    } catch (error) {
+      console.error('Error fetching liability entries:', error);
+      showAlert('Failed to fetch liability entries.', 'danger');
+    }
+  }, [showAlert]);
 
   useEffect(() => {
     fetchLiabilityEntries();
-    const handleStorageUpdate = () => {
-      setTimeout(() => {
-        fetchLiabilityEntries();
-      }, 100); // Add a small delay to ensure localStorage is updated
+    const handleDataUpdate = () => {
+      fetchLiabilityEntries();
     };
-    window.addEventListener('localStorageUpdated', handleStorageUpdate);
+    window.addEventListener('dataUpdated', handleDataUpdate);
+    window.addEventListener('fixedEntryUpdated', handleDataUpdate);
     return () => {
-      window.removeEventListener('localStorageUpdated', handleStorageUpdate);
+      window.removeEventListener('dataUpdated', handleDataUpdate);
+      window.removeEventListener('fixedEntryUpdated', handleDataUpdate);
     };
   }, [fetchLiabilityEntries]);
 
@@ -52,60 +66,113 @@ function Liabilities() {
     setNewEntry({ ...newEntry, [name]: date });
   };
 
-  const handleMarkAsPaid = (id) => {
-    const entryToMarkPaid = liabilityEntries.find(entry => entry.id === id);
-    if (entryToMarkPaid) {
+  const handleMarkAsPaid = async (id, isFixed) => {
+    try {
+      const entryToMarkPaid = liabilityEntries.find(entry => entry.id === id);
+      if (!entryToMarkPaid) return;
+
       const updatedEntry = { ...entryToMarkPaid, paid: true };
-      if (updatedEntry.isFixed) {
-        updateFixedEntry('liabilities', id, updatedEntry);
+
+      let response;
+      if (isFixed) {
+        response = await fetch(`${API_BASE_URL}/fixed-entries/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedEntry),
+        });
       } else {
-        const updatedEntries = liabilityEntries.map(entry =>
-          entry.id === id ? updatedEntry : entry
-        );
-        localStorage.setItem('liabilityEntries', JSON.stringify(updatedEntries.filter(entry => !entry.isFixed).map(entry => ({
-          ...entry,
-          date: entry.date ? entry.date.toISOString() : null,
-          dueDate: entry.dueDate ? entry.dueDate.toISOString() : null
-        }))));
-        setLiabilityEntries(updatedEntries);
+        response = await fetch(`${API_BASE_URL}/liabilities/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedEntry),
+        });
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
       showAlert('Liability marked as paid!', 'success');
-      window.dispatchEvent(new Event('localStorageUpdated'));
+      fetchLiabilityEntries();
+      window.dispatchEvent(new Event('dataUpdated'));
+    } catch (error) {
+      console.error('Error marking liability as paid:', error);
+      showAlert('Failed to mark liability as paid.', 'danger');
     }
   };
 
-  const handleAddOrUpdateEntry = () => {
-    console.log('handleAddOrUpdateEntry called. New entry:', newEntry);
+  const handleAddOrUpdateEntry = async () => {
     if (newEntry.date && newEntry.dueDate && newEntry.description && newEntry.amount) {
-      if (editingId !== null) {
-        const updatedEntries = liabilityEntries.map(entry =>
-          entry.id === editingId ? { ...newEntry, srNo: entry.srNo } : entry
-        );
-        setLiabilityEntries(updatedEntries);
-        setEditingId(null);
-        showAlert('Record updated successfully');
-      } else {
-        setLiabilityEntries([...liabilityEntries, { ...newEntry, id: Date.now(), srNo: liabilityEntries.length + 1, paid: false }]);
-        showAlert('Record added successfully');
+      try {
+        const entryData = { ...newEntry, date: newEntry.date.toISOString().split('T')[0], dueDate: newEntry.dueDate.toISOString().split('T')[0] };
+        if (editingEntry) {
+          // Update existing entry
+          const response = await fetch(`${API_BASE_URL}/liabilities/${editingEntry.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(entryData),
+          });
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          showAlert('Record updated successfully', 'success');
+        } else {
+          // Add new entry
+          const response = await fetch(`${API_BASE_URL}/liabilities`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(entryData),
+          });
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          showAlert('Record added successfully', 'success');
+        }
+        setNewEntry({ date: null, dueDate: null, description: '', amount: '', paid: false });
+        setEditingEntry(null);
+        setIsModalOpen(false);
+        fetchLiabilityEntries();
+        window.dispatchEvent(new Event('dataUpdated'));
+      } catch (error) {
+        console.error('Error adding/updating liability entry:', error);
+        showAlert('Failed to save liability entry.', 'danger');
       }
-      setNewEntry({ date: null, dueDate: null, description: '', amount: '', paid: false });
     } else {
       showAlert('Please fill in all fields.', 'danger');
     }
   };
 
   const handleEditEntry = (id) => {
-    console.log('handleEditEntry called for ID:', id);
     const entryToEdit = liabilityEntries.find(entry => entry.id === id);
-    setNewEntry(entryToEdit);
-    setEditingId(id);
+    if (entryToEdit) {
+      setNewEntry({ ...entryToEdit, date: new Date(entryToEdit.date), dueDate: new Date(entryToEdit.dueDate) });
+      setEditingEntry(entryToEdit);
+      setIsModalOpen(true);
+    }
   };
 
-  const handleDeleteEntry = (id) => {
-    console.log('handleDeleteEntry called for ID:', id);
-    const updatedEntries = liabilityEntries.filter(entry => entry.id !== id);
-    setLiabilityEntries(updatedEntries);
-    showAlert('Record deleted successfully', 'danger');
+  const handleDeleteEntry = async (id, isFixed) => {
+    try {
+      let response;
+      if (isFixed) {
+        response = await fetch(`${API_BASE_URL}/fixed-entries/${id}`, {
+          method: 'DELETE',
+        });
+      } else {
+        response = await fetch(`${API_BASE_URL}/liabilities/${id}`, {
+          method: 'DELETE',
+        });
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      showAlert('Record deleted successfully', 'danger');
+      fetchLiabilityEntries();
+      window.dispatchEvent(new Event('dataUpdated'));
+    } catch (error) {
+      console.error('Error deleting liability entry:', error);
+      showAlert('Failed to delete liability entry.', 'danger');
+    }
   };
 
   const filteredLiabilityEntries = liabilityEntries.filter(entry => {
@@ -116,7 +183,6 @@ function Liabilities() {
   const totalLiabilities = filteredLiabilityEntries.reduce((sum, entry) => sum + parseFloat(entry.amount || 0), 0);
 
   const getStatus = (dueDate, isPaid) => {
-    console.log('getStatus called. DueDate:', dueDate, 'isPaid:', isPaid);
     if (isPaid) return 'Paid';
     const today = new Date();
     const due = new Date(dueDate);
@@ -132,14 +198,24 @@ function Liabilities() {
   return (
     <div className="page-container">
       <h1 className="page-title">Liabilities
-        <button onClick={() => setShowForm(!showForm)} className="btn btn-add-toggle">
-          {showForm ? '-' : '+'}
+        <button onClick={() => setIsModalOpen(true)} className="btn btn-add-toggle">
+          +
         </button>
       </h1>
 
-      {showForm && (
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingEntry ? 'Edit Liability Entry' : 'Add Liability Entry'}>
         <div className="form-section">
-          <h2 className="section-title">Add/Edit Liability Entry</h2>
+          <div className="form-header">
+            <h2 className="section-title">{editingEntry ? 'Edit' : 'Add'} Liability Entry</h2>
+            <div className="form-buttons">
+              <button onClick={handleAddOrUpdateEntry} className="btn btn-primary">
+                {editingEntry ? 'Update' : 'Add'}
+              </button>
+              <button onClick={() => setIsModalOpen(false)} className="btn btn-secondary">
+                Cancel
+              </button>
+            </div>
+          </div>
           <div className="form-grid">
             <DatePicker
               selected={newEntry.date}
@@ -171,15 +247,9 @@ function Liabilities() {
               onChange={handleInputChange}
               className="form-input"
             />
-            <button
-              onClick={handleAddOrUpdateEntry}
-              className="btn btn-primary"
-            >
-              {editingId !== null ? 'Update Entry' : 'Add Entry'}
-            </button>
           </div>
         </div>
-      )}
+      </Modal>
 
       <div className="table-section">
         <h2 className="section-title">Liability Entries</h2>
@@ -290,7 +360,7 @@ function Liabilities() {
                     {entry.isFixed ? (
                       !entry.paid && (
                         <button
-                          onClick={() => handleMarkAsPaid(entry.id)}
+                          onClick={() => handleMarkAsPaid(entry.id, true)}
                           className="btn btn-save"
                         >
                           Paid
@@ -317,7 +387,7 @@ function Liabilities() {
                           <>
                             {!entry.paid && (
                               <button
-                                onClick={() => handleMarkAsPaid(entry.id)}
+                                onClick={() => handleMarkAsPaid(entry.id, false)}
                                 className="btn btn-save"
                               >
                                 Paid
@@ -330,7 +400,7 @@ function Liabilities() {
                               Edit
                             </button>
                             <button
-                              onClick={() => handleDeleteEntry(entry.id)}
+                              onClick={() => handleDeleteEntry(entry.id, false)}
                               className="btn btn-delete"
                             >
                               Delete

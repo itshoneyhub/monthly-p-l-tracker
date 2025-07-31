@@ -43,18 +43,30 @@ function Dashboard() {
 
   useEffect(() => {
     console.log('Dashboard: useEffect - fetching data');
-    const fetchData = (monthFilter = null) => {
-      const incomeEntries = JSON.parse(localStorage.getItem('incomeEntries')) || [];
-      const expenseEntries = JSON.parse(localStorage.getItem('expenseEntries')) || [];
-      const liabilityEntries = JSON.parse(localStorage.getItem('liabilityEntries')) || [];
+    const fetchData = async (monthFilter = null) => {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL + '/api';
 
-      console.log('Dashboard: Raw incomeEntries from localStorage', incomeEntries);
-      console.log('Dashboard: Raw expenseEntries from localStorage', expenseEntries);
-      console.log('Dashboard: Raw liabilityEntries from localStorage', liabilityEntries);
+      const fetchEntries = async (type) => {
+        try {
+          const response = await fetch(`${API_BASE_URL}/${type}`);
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          return await response.json();
+        } catch (error) {
+          console.error(`Error fetching ${type} entries:`, error);
+          return [];
+        }
+      };
 
-      const fixedIncomeEntries = getFixedEntries('income');
-      const fixedExpenseEntries = getFixedEntries('expenses');
-      const fixedLiabilityEntries = getFixedEntries('liabilities');
+      const incomeEntries = await fetchEntries('income');
+      const expenseEntries = await fetchEntries('expenses');
+      const liabilityEntries = await fetchEntries('liabilities');
+      const fixedEntries = await getFixedEntries('all'); // Fetch all fixed entries
+
+      const fixedIncomeEntries = fixedEntries.filter(entry => entry.type === 'income');
+      const fixedExpenseEntries = fixedEntries.filter(entry => entry.type === 'expenses');
+      const fixedLiabilityEntries = fixedEntries.filter(entry => entry.type === 'liabilities');
 
       const allIncome = [...incomeEntries, ...fixedIncomeEntries];
       const allExpenses = [...expenseEntries, ...fixedExpenseEntries];
@@ -193,23 +205,27 @@ function Dashboard() {
     // Initial fetch and re-fetch on month change
     fetchData(selectedMonth);
 
-    const handleStorageUpdate = () => fetchData(selectedMonth);
-    window.addEventListener('localStorageUpdated', handleStorageUpdate);
+    const handleDataUpdate = () => {
+      fetchData(selectedMonth);
+    };
+    window.addEventListener('dataUpdated', handleDataUpdate);
+    window.addEventListener('fixedEntryUpdated', handleDataUpdate);
 
     return () => {
-      window.removeEventListener('localStorageUpdated', handleStorageUpdate);
+      window.removeEventListener('dataUpdated', handleDataUpdate);
+      window.removeEventListener('fixedEntryUpdated', handleDataUpdate);
     };
   }, [selectedMonth, showAlert]); // Re-run effect when selectedMonth changes or showAlert changes
 
   // Effect for recurring upcoming liabilities alert
   useEffect(() => {
-    const checkUpcomingLiabilities = () => {
-      const allLiabilities = getFixedEntries('liabilities');
+    const checkUpcomingLiabilities = async () => {
+      const fixedLiabilities = await getFixedEntries('liabilities');
       const today = new Date();
       const fiveDaysFromNow = new Date();
       fiveDaysFromNow.setDate(today.getDate() + 5);
 
-      const upcomingLiabilities = allLiabilities.filter(liability => {
+      const upcomingLiabilities = fixedLiabilities.filter(liability => {
         const liabilityDate = new Date(liability.date);
         return liabilityDate >= today && liabilityDate <= fiveDaysFromNow;
       });
